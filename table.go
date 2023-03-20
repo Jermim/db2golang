@@ -73,7 +73,7 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("\tTable string\n\n"))
 
 	for _, col := range dt.Columns {
-		code.WriteString(fmt.Sprintf("\t%s %s `ot:\"%s\"`\n",
+		code.WriteString(fmt.Sprintf("\t%s %s `dbt:\"%s\"`\n",
 			col.structFieldName(),
 			col.structFieldType(),
 			col.Type))
@@ -98,7 +98,7 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
-	code.WriteString(fmt.Sprintf("\trow.Scan(%s)\n", func() string {
+	code.WriteString(fmt.Sprintf("\tif err := row.Scan(%s); err != nil { \n", func() string {
 		elems := make([]string, len(dt.Columns))
 
 		for i, col := range dt.Columns {
@@ -107,6 +107,8 @@ func (dt *Table) Generate(dir string) error {
 
 		return strings.Join(elems, ", ")
 	}()))
+	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
+	code.WriteString(fmt.Sprintf("\t}\n"))
 	code.WriteString(fmt.Sprintf("\treturn obj\n"))
 	code.WriteString(fmt.Sprintf("}\n"))
 
