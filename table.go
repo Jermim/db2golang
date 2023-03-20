@@ -15,8 +15,7 @@ var (
 
 type Table struct {
 	TableName string
-
-	Columns []*Column
+	Columns   []*Column
 }
 
 func (dt *Table) importSql() bool {
@@ -88,12 +87,14 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("\t\tdb: db,\n"))
 	code.WriteString(fmt.Sprintf("\t\tTable: \"%s\",\n", dt.TableName))
 	code.WriteString(fmt.Sprintf("\t}\n"))
-	code.WriteString(fmt.Sprintf("}\n"))
+	code.WriteString(fmt.Sprintf("}\n\n"))
 
 	// find func
-	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, key interface{}) *%s {\n", dt.structName(), dt.structName()))
+	key := dt.keyColumn()
+
+	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, %s %s) *%s {\n", dt.structName(), key.structFieldName(), key.structFieldType(), dt.structName()))
 	code.WriteString(fmt.Sprintf("\tobj := New%s(db)\n", dt.structName()))
-	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(fmt.Sprintf(\"SELECT * FROM %%s WHERE %s = ?\", obj.Table), key)\n", dt.keyColumn().Name))
+	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(fmt.Sprintf(\"SELECT * FROM %%s WHERE %s = ?\", obj.Table), %s)\n", key.Name, key.structFieldName()))
 	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
