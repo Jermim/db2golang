@@ -68,12 +68,23 @@ func (dt *Table) Generate(dir string) error {
 
 	code.WriteString(fmt.Sprintf("}\n\n"))
 
-	// new function
+	// new func
 	code.WriteString(fmt.Sprintf("func New%s(db *sql.DB) *%s {\n", dt.structName(), dt.structName()))
 	code.WriteString(fmt.Sprintf("\treturn &%s{\n", dt.structName()))
 	code.WriteString(fmt.Sprintf("\t\tdb: db,\n"))
 	code.WriteString(fmt.Sprintf("\t\tTable: \"%s\",\n", dt.TableName))
 	code.WriteString(fmt.Sprintf("\t}\n"))
+	code.WriteString(fmt.Sprintf("}\n"))
+
+	// find func
+	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, id interface{}) *%s {\n", dt.structName(), dt.structName()))
+	code.WriteString(fmt.Sprintf("\tobj := New%s(db)\n", dt.structName()))
+	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(\"select * from %%s where %%s = ?\", obj.Table)\n"))
+	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
+	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
+	code.WriteString(fmt.Sprintf("\t}\n"))
+	code.WriteString(fmt.Sprintf("\trow.Scan(&obj.%s)\n", dt.Columns[0].structFieldName()))
+	code.WriteString(fmt.Sprintf("\treturn obj\n"))
 	code.WriteString(fmt.Sprintf("}\n"))
 
 	file, err := os.Create(fmt.Sprintf("%s/%s.go", dir, dt.structName()))
