@@ -66,6 +66,8 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("import (\n"))
 	code.WriteString(fmt.Sprintf("\t\"database/sql\"\n"))
 	code.WriteString(fmt.Sprintf("\t\"fmt\"\n"))
+	// code.WriteString(fmt.Sprintf("\t\"time\"\n"))
+	code.WriteString(fmt.Sprintf("\t\"log\"\n"))
 	code.WriteString(fmt.Sprintf(")\n\n"))
 	code.WriteString(fmt.Sprintf("type %s struct {\n", dt.structName()))
 
@@ -107,12 +109,74 @@ func (dt *Table) Generate(dir string) error {
 
 		return strings.Join(elems, ", ")
 	}()))
+	code.WriteString(fmt.Sprintf("\t\tlog.Println(err)\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
 	code.WriteString(fmt.Sprintf("\treturn obj\n"))
 	code.WriteString(fmt.Sprintf("}\n"))
 
 	file, err := os.Create(fmt.Sprintf("%s/%s.go", dir, dt.structName()))
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := file.WriteString(code.String()); err != nil {
+		return err
+	}
+
+	dt.GenerateTest(dir)
+
+	return nil
+}
+
+func (dt *Table) GenerateTest(dir string) error {
+	var code bytes.Buffer
+
+	key := dt.keyColumn()
+
+	code.WriteString(fmt.Sprintf("package main\n\n"))
+	code.WriteString(fmt.Sprintf("import (\n"))
+	code.WriteString(fmt.Sprintf("\t\"fmt\"\n"))
+	code.WriteString(fmt.Sprintf("\t\"log\"\n"))
+	code.WriteString(fmt.Sprintf("\t\"database/sql\"\n"))
+	code.WriteString(fmt.Sprintf("\t_ \"github.com/go-sql-driver/mysql\"\n"))
+	code.WriteString(fmt.Sprintf("\t\"testing\"\n"))
+	code.WriteString(fmt.Sprintf(")\n\n"))
+
+	code.WriteString(fmt.Sprintf(`func Test%s(t *testing.T) {
+	db, err := sql.Open("mysql", "admin:admin@/app")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer db.Close()
+
+	row := db.QueryRow(fmt.Sprintf("select %s from %s limit 1"))
+
+	if row.Err() != nil {
+		t.Fatal(row.Err())
+		return
+	}
+
+	var %s %s
+
+	if err := row.Scan(&%s); err != nil {
+		t.Fatal(err)
+	}
+
+	obj := Find%s(db, %s)
+
+	if obj == nil {
+		t.Fatalf("could not load row %%#v using Find%s", %s)
+	} 
+
+	log.Println(obj)
+}`, dt.structName(), key.Name, dt.TableName, key.structFieldName(), key.structFieldType(), key.structFieldName(), dt.structName(), key.structFieldName(),
+		dt.structName(), key.structFieldName()))
+
+	file, err := os.Create(fmt.Sprintf("%s/%s_test.go", dir, dt.structName()))
 
 	if err != nil {
 		return err
