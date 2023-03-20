@@ -48,12 +48,26 @@ func (dt *Table) structName() string {
 	})
 }
 
+func (dt *Table) keyColumn() *Column {
+
+	for _, c := range dt.Columns {
+		if c.Key == "PRI" {
+			return c
+		}
+	}
+
+	return dt.Columns[0] // @todo
+}
+
 func (dt *Table) Generate(dir string) error {
 
 	var code bytes.Buffer
 
 	code.WriteString(fmt.Sprintf("package main\n\n"))
-	code.WriteString(fmt.Sprintf("import \"database/sql\"\n\n"))
+	code.WriteString(fmt.Sprintf("import (\n"))
+	code.WriteString(fmt.Sprintf("\t\"database/sql\"\n"))
+	code.WriteString(fmt.Sprintf("\t\"fmt\"\n"))
+	code.WriteString(fmt.Sprintf(")\n\n"))
 	code.WriteString(fmt.Sprintf("type %s struct {\n", dt.structName()))
 
 	code.WriteString(fmt.Sprintf("\tdb *sql.DB\n"))
@@ -77,9 +91,9 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("}\n"))
 
 	// find func
-	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, id interface{}) *%s {\n", dt.structName(), dt.structName()))
+	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, key interface{}) *%s {\n", dt.structName(), dt.structName()))
 	code.WriteString(fmt.Sprintf("\tobj := New%s(db)\n", dt.structName()))
-	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(\"select * from %%s where %%s = ?\", obj.Table)\n"))
+	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(fmt.Sprintf(\"SELECT * FROM %%s WHERE %s = ?\", obj.Table), key)\n", dt.keyColumn().Name))
 	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
