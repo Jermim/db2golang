@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-var reNumberBetweenBrackets = regexp.MustCompile("(?si)(\\(\\d+\\))")
+var (
+	reNumberBetweenBrackets = regexp.MustCompile("(?si)(\\(\\d+\\))")
+	reUnderscore            = regexp.MustCompile("(?is)_[a-z]")
+)
 
 type Table struct {
 	TableName string
@@ -26,16 +29,35 @@ func (dt *Table) importSql() bool {
 	return false
 }
 
+func (dt *Table) structName() string {
+
+	s := strings.Title(dt.TableName)
+
+	if strings.HasSuffix(s, "ies") {
+		s = s[:len(s)-3] + "y"
+	} else if strings.HasSuffix(s, "sses") {
+		s = s[:len(s)-2]
+	} else if strings.HasSuffix(s, "ers") {
+		s = s[:len(s)-1]
+	} else if strings.HasSuffix(s, "s") {
+		s = s[:len(s)-1]
+	}
+
+	return reUnderscore.ReplaceAllStringFunc(s, func(s string) string {
+		return strings.ToUpper(s[1:])
+	})
+}
+
 func (dt *Table) Generate(dir string) error {
 
 	var code bytes.Buffer
 
 	code.WriteString(fmt.Sprintf("package main\n\n"))
+	code.WriteString(fmt.Sprintf("import \"database/sql\"\n\n"))
+	code.WriteString(fmt.Sprintf("type %s struct {\n", dt.structName()))
 
-	if dt.importSql() {
-		code.WriteString(fmt.Sprintf("import \"database/sql\"\n\n"))
-	}
-	code.WriteString(fmt.Sprintf("type %s struct {\n", dt.TableName))
+	code.WriteString(fmt.Sprintf("\tdb *sql.DB\n"))
+	code.WriteString(fmt.Sprintf("\tTable string\n\n"))
 
 	for _, col := range dt.Columns {
 		code.WriteString(fmt.Sprintf("\t%s %s `ot:\"%s\"`\n",
@@ -44,9 +66,17 @@ func (dt *Table) Generate(dir string) error {
 			col.Type))
 	}
 
-	code.WriteString(fmt.Sprintf("}"))
+	code.WriteString(fmt.Sprintf("}\n\n"))
 
-	file, err := os.Create(fmt.Sprintf("%s/%s.go", dir, dt.TableName))
+	// new function
+	code.WriteString(fmt.Sprintf("func New%s(db *sql.DB) *%s {\n", dt.structName(), dt.structName()))
+	code.WriteString(fmt.Sprintf("\treturn &%s{\n", dt.structName()))
+	code.WriteString(fmt.Sprintf("\t\tdb: db,\n"))
+	code.WriteString(fmt.Sprintf("\t\tTable: \"%s\",\n", dt.TableName))
+	code.WriteString(fmt.Sprintf("\t}\n"))
+	code.WriteString(fmt.Sprintf("}\n"))
+
+	file, err := os.Create(fmt.Sprintf("%s/%s.go", dir, dt.structName()))
 
 	if err != nil {
 		return err
