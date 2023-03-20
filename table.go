@@ -83,7 +83,15 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
-	code.WriteString(fmt.Sprintf("\trow.Scan(&obj.%s)\n", dt.Columns[0].structFieldName()))
+	code.WriteString(fmt.Sprintf("\trow.Scan(%s)\n", func() string {
+		elems := make([]string, len(dt.Columns))
+
+		for i, col := range dt.Columns {
+			elems[i] = fmt.Sprintf("&obj.%s", col.structFieldName())
+		}
+
+		return strings.Join(elems, ", ")
+	}()))
 	code.WriteString(fmt.Sprintf("\treturn obj\n"))
 	code.WriteString(fmt.Sprintf("}\n"))
 
