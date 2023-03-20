@@ -20,7 +20,7 @@ type Table struct {
 
 func (dt *Table) importSql() bool {
 	for _, col := range dt.Columns {
-		if strings.HasPrefix(col.structFieldType(), "sql.") {
+		if strings.HasPrefix(col.Type, "sql.") {
 			return true
 		}
 	}
@@ -50,7 +50,7 @@ func (dt *Table) structName() string {
 func (dt *Table) keyColumn() *Column {
 
 	for _, c := range dt.Columns {
-		if c.Key == "PRI" {
+		if c.PrimaryKey {
 			return c
 		}
 	}
@@ -66,7 +66,6 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("import (\n"))
 	code.WriteString(fmt.Sprintf("\t\"database/sql\"\n"))
 	code.WriteString(fmt.Sprintf("\t\"fmt\"\n"))
-	// code.WriteString(fmt.Sprintf("\t\"time\"\n"))
 	code.WriteString(fmt.Sprintf("\t\"log\"\n"))
 	code.WriteString(fmt.Sprintf(")\n\n"))
 	code.WriteString(fmt.Sprintf("type %s struct {\n", dt.structName()))
@@ -75,10 +74,10 @@ func (dt *Table) Generate(dir string) error {
 	code.WriteString(fmt.Sprintf("\tTable string\n\n"))
 
 	for _, col := range dt.Columns {
-		code.WriteString(fmt.Sprintf("\t%s %s `dbt:\"%s\"`\n",
-			col.structFieldName(),
-			col.structFieldType(),
-			col.Type))
+		code.WriteString(fmt.Sprintf("\t%s %s `dbn:\"%s\"`\n",
+			col.Name,
+			col.Type,
+			col.DBName()))
 	}
 
 	code.WriteString(fmt.Sprintf("}\n\n"))
@@ -94,9 +93,9 @@ func (dt *Table) Generate(dir string) error {
 	// find func
 	key := dt.keyColumn()
 
-	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, %s %s) *%s {\n", dt.structName(), key.structFieldName(), key.structFieldType(), dt.structName()))
+	code.WriteString(fmt.Sprintf("func Find%s(db *sql.DB, %s %s) *%s {\n", dt.structName(), key.Name, key.Type, dt.structName()))
 	code.WriteString(fmt.Sprintf("\tobj := New%s(db)\n", dt.structName()))
-	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(fmt.Sprintf(\"SELECT * FROM %%s WHERE %s = ?\", obj.Table), %s)\n", key.Name, key.structFieldName()))
+	code.WriteString(fmt.Sprintf("\trow := obj.db.QueryRow(fmt.Sprintf(\"SELECT * FROM %%s WHERE %s = ?\", obj.Table), %s)\n", key.Name, key.Name))
 	code.WriteString(fmt.Sprintf("\tif row.Err() != nil {\n"))
 	code.WriteString(fmt.Sprintf("\t\treturn nil\n"))
 	code.WriteString(fmt.Sprintf("\t}\n"))
@@ -104,7 +103,7 @@ func (dt *Table) Generate(dir string) error {
 		elems := make([]string, len(dt.Columns))
 
 		for i, col := range dt.Columns {
-			elems[i] = fmt.Sprintf("&obj.%s", col.structFieldName())
+			elems[i] = fmt.Sprintf("&obj.%s", col.Name)
 		}
 
 		return strings.Join(elems, ", ")
@@ -173,8 +172,8 @@ func (dt *Table) GenerateTest(dir string) error {
 	} 
 
 	log.Println(obj)
-}`, dt.structName(), key.Name, dt.TableName, key.structFieldName(), key.structFieldType(), key.structFieldName(), dt.structName(), key.structFieldName(),
-		dt.structName(), key.structFieldName()))
+}`, dt.structName(), key.Name, dt.TableName, key.Name, key.Type, key.Name, dt.structName(), key.Name,
+		dt.structName(), key.Name))
 
 	file, err := os.Create(fmt.Sprintf("%s/%s_test.go", dir, dt.structName()))
 

@@ -73,7 +73,7 @@ func main() {
 		for infos.Next() {
 			var col Column
 
-			if err := infos.Scan(&col.Name, &col.Type, &col.Nullable, &col.Key, &col.f5, &col.increment); err != nil {
+			if err := col.Scan(infos); err != nil {
 				Throw(err)
 			}
 

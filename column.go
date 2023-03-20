@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
+	"errors"
 	"strings"
 )
 
-type Column struct {
+type DBFieldDescription struct {
 	Name      string
 	Type      string
 	Nullable  string
@@ -13,20 +15,48 @@ type Column struct {
 	increment string
 }
 
-func (dc *Column) structFieldName() string {
-	return strings.Title(dc.Name)
+type Column struct {
+	descr      *DBFieldDescription
+	Name       string
+	Type       string
+	PrimaryKey bool
+	Nullable   bool
 }
 
-func (dc *Column) isPrimaryKey() bool {
-	return dc.Key == "PRI"
+func (dc *Column) Scan(rows *sql.Rows) error {
+	if dc.descr != nil {
+		return errors.New("Column::scan already called")
+	}
+
+	dc.descr = &DBFieldDescription{}
+	fields := []interface{}{&dc.descr.Name, &dc.descr.Type, &dc.descr.Nullable, &dc.descr.Key, &dc.descr.f5, &dc.descr.increment}
+
+	if err := rows.Scan(fields...); err != nil {
+		return err
+	}
+
+	dc.init()
+
+	return nil
 }
 
-func (dc *Column) isNullable() bool {
-	return dc.Nullable == "YES"
+func (dc *Column) init() {
+	dc.Name = strings.Title(dc.descr.Name)
+	dc.Type = structFieldType(dc)
+	dc.PrimaryKey = dc.descr.Key == "PRI"
+	dc.Nullable = dc.descr.Nullable == "YES"
+}
+
+func (dc *Column) DBName() string {
+	return dc.descr.Name
+}
+
+func (dc *Column) DBType() string {
+	return dc.descr.Type
 }
 
 func (dc *Column) stringType() string {
-	if dc.isNullable() {
+	if dc.Nullable {
 		return "sql.NullString"
 	}
 
@@ -34,7 +64,7 @@ func (dc *Column) stringType() string {
 }
 
 func (dc *Column) intType() string {
-	if dc.isNullable() {
+	if dc.Nullable {
 		return "sql.NullInt32"
 	}
 
@@ -42,7 +72,7 @@ func (dc *Column) intType() string {
 }
 
 func (dc *Column) boolType() string {
-	if dc.isNullable() {
+	if dc.Nullable {
 		return "sql.NullBool"
 	}
 
@@ -50,16 +80,16 @@ func (dc *Column) boolType() string {
 }
 
 func (dc *Column) floatType() string {
-	if dc.isNullable() {
+	if dc.Nullable {
 		return "sql.NullFloat64"
 	}
 
 	return "float64"
 }
 
-func (dc *Column) structFieldType() string {
+func structFieldType(dc *Column) string {
 
-	t := strings.Replace(dc.Type, " unsigned", "", -1)
+	t := strings.Replace(dc.descr.Type, " unsigned", "", -1)
 
 	if strings.HasPrefix(t, "varchar(") || strings.HasPrefix(t, "char(") {
 		return dc.stringType()
